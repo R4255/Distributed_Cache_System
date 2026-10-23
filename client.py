@@ -49,7 +49,7 @@ async def interactive_mode():
         await client.connect()
         
         print("Cache client connected! Type commands or 'quit' to exit")
-        print("Examples: SET key value, GET key, DEL key, STATS, KEYS")
+        print("Examples: SET key value, SET key value EX 30, GET key, DEL key, STATS, KEYS")
         
         while True:
             try:
@@ -88,7 +88,7 @@ async def demo_mode():
             ("SET user:2 jane", "Setting user:2 to jane"),
             ("GET user:1", "Getting user:1"),
             ("GET user:2", "Getting user:2"),
-            ("SET temp_key 'expires in 5 seconds' 5", "Setting key with 5 second TTL"),
+            ("SET temp_key 'expires in 5 seconds' EX 5", "Setting key with 5 second TTL"),
             ("KEYS", "Listing all keys"),
             ("STATS", "Getting cache statistics"),
             ("DEL user:1", "Deleting user:1"),

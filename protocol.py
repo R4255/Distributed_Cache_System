@@ -10,7 +10,7 @@ class CacheProtocol:
     Simple Text Based Protocol for Cache Operations.
     Commands:
     GET key
-    SET key value [ttl]
+    SET key value [EX seconds]
     DEL key
     STATS
     KEYS
@@ -48,13 +48,17 @@ class CacheProtocol:
                 key = parts[1]
                 value = " ".join(parts[2:])
                 ttl = None
-                #checking if last part is ttl
-                try:
-                    ttl = float(parts[-1])
-                    value = " ".join(parts[2:-1])
-                except (ValueError, IndexError):
-                    pass
-                
+                # TTL only via an explicit "EX seconds" suffix (as in Redis), so a numeric value
+                # like "SET answer 42" is stored as "42" instead of being mistaken for a TTL
+                if len(parts) >= 5 and parts[-2].upper() == "EX":
+                    try:
+                        ttl = float(parts[-1])
+                    except ValueError:
+                        return "ERROR: EX requires a number of seconds"
+                    if ttl <= 0:
+                        return "ERROR: EX must be greater than 0"
+                    value = " ".join(parts[2:-2])
+
                 success = self.cache.set(key, value, ttl)
                 return "OK" if success else "ERROR: Failed to set"
             

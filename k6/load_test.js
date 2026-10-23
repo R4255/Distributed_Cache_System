@@ -28,6 +28,9 @@ export const options = {
   },
 };
 
+// A 404 is a cache miss, not a failure: only 5xx/timeouts should count toward http_req_failed.
+http.setResponseCallback(http.expectedStatuses(200, 404));
+
 const BASE    = 'http://localhost:8000';
 const HEADERS = { 'Content-Type': 'application/json' };
 const KEY_SPACE = 10_000;

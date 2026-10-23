@@ -77,6 +77,9 @@ class LRUStore:
         self._od[key] = entry
         self._od.move_to_end(key)
 
+    def on_update(self, key: str):
+        self.mark_accessed(key)                     # overwrite counts as a use
+
     def evict_one(self) -> Optional[str]:
         if self._od:
             key, _ = self._od.popitem(last=False)   # O(1) — remove LRU
@@ -119,6 +122,9 @@ class LFUStore:
         self._ver[key]  = 1
         heapq.heappush(self._heap, (1, entry.accessed_at, key, 1))
 
+    def on_update(self, key: str):
+        self.mark_accessed(key)                 # overwrite keeps (and bumps) the frequency
+
     def evict_one(self) -> Optional[str]:
         while self._heap:
             freq, ts, key, ver = heapq.heappop(self._heap)
@@ -156,8 +162,17 @@ class TTLStore:
 
     def set(self, key: str, entry: CacheEntry):
         self._data[key] = entry
+        self._push(entry)
+
+    def on_update(self, key: str):
+        # The entry's TTL/created_at changed: push its new expiry. The old heap
+        # entry no longer matches and is skipped as stale in evict_one.
+        if key in self._data:
+            self._push(self._data[key])
+
+    def _push(self, entry: CacheEntry):
         expires_at = (entry.created_at + entry.ttl) if entry.ttl else float('inf')
-        heapq.heappush(self._heap, (expires_at, key))
+        heapq.heappush(self._heap, (expires_at, entry.key))
 
     def evict_one(self) -> Optional[str]:
         while self._heap:
@@ -254,11 +269,16 @@ class CacheNode:
         with self._lock:
             if _PROM: CACHE_SETS.inc()
             if key in self._store:
+                # Overwrite: like Redis SET, the TTL restarts from now. Keeping the old
+                # created_at would make e.g. a re-SET with ttl=60 on a 100 s-old key
+                # expire immediately.
+                now = time.time()
                 entry = self._store.get(key)
                 entry.value       = value
-                entry.accessed_at = time.time()
+                entry.created_at  = now
+                entry.accessed_at = now
                 entry.ttl         = ttl
-                self._store.mark_accessed(key)
+                self._store.on_update(key)
                 if _PROM: CACHE_SET_LAT.observe(time.monotonic() - t0)
                 return True
             if len(self._store) >= self.max_size:
