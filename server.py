@@ -43,17 +43,17 @@ class CacheServer:
                 await writer.drain()
                 #await writer.drain() ensures that the data you just wrote is actually sent to the client.
                 '''
-                Buffering: When you call writer.write(), the data might be buffered in memory rather than immediately sent over the network
+Buffering: When you call writer.write(), the data might be buffered in memory rather than immediately sent over the network
 Flushing: drain() forces the buffer to be flushed, actually transmitting the data
 Backpressure handling: If the network is slow or the client isn't reading fast enough, drain() will wait until there's space in the buffer
 Async behavior: The await means this operation won't block other concurrent connections while waiting
                 '''
         except asyncio.CancelledError:
-            # Server is running with multiple client connections
-            # User presses Ctrl+C or calls server.stop()
-            # All client handler tasks get cancelled
-            # Each raises CancelledError
-            pass
+            # CancelledError MUST be re-raised — it is a signal, not an error.
+            # Swallowing it breaks graceful shutdown: the event loop can't
+            # properly cancel tasks if handlers absorb the signal.
+            logger.info(f"Connection to {client_addr} cancelled (graceful shutdown)")
+            raise
         except Exception as e:
             logger.error(f"Error handling client {client_addr}: {e}")
         finally:
